@@ -1,0 +1,12 @@
+[package]
+name = "libheif"
+version = "0.1.0"
+authors = ["oussama <md.oussama@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+heif-sys = "0.1"
+
+
+[dev-dependencies]
+mozjpeg = "0.8"

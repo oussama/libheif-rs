@@ -3,6 +3,11 @@ name = "libheif"
 version = "0.1.0"
 authors = ["oussama <md.oussama@gmail.com>"]
 edition = "2018"
+description = "libheif"
+repository = "https://github.com/oussama/libheif-rs"
+keywords = ["heic","heif","libheif"]
+license = "Apache-2.0"
+documentation = "https://docs.rs/libheif"
 
 [dependencies]
 heif-sys = "0.1"

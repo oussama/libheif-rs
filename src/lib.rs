@@ -1,3 +1,4 @@
+use failure::Fail;
 use heif_sys::*;
 use std::ffi;
 use std::mem;
@@ -5,19 +6,30 @@ use std::ptr;
 
 mod test;
 
-#[derive(Debug)]
+#[derive(Debug, Fail)]
 #[repr(C)]
-pub enum Error {
+pub enum HeifError {
+    #[fail(display = "Input does not exist")]
     InputDoesNotExist = 1,
+    #[fail(display = "Invalid Input")]
     InvalidInput = 2,
+    #[fail(display = "Unsupported File Type")]
     UnsupportedFiletype = 3,
+    #[fail(display = "Unsupported Feature")]
     UnsupportedFeature = 4,
-    UsageError = 5,
-    MemoryAllocationError = 6,
-    DecoderPluginError = 7,
-    EncoderPluginError = 8,
-    EncodingError = 9,
+    #[fail(display = "Usage Error")]
+    UsageHeifError = 5,
+    #[fail(display = "Memory Allocation Error")]
+    MemoryAllocationHeifError = 6,
+    #[fail(display = "Decoder Plugin Error")]
+    DecoderPluginHeifError = 7,
+    #[fail(display = "Encoder Plugin Error")]
+    EncoderPluginHeifError = 8,
+    #[fail(display = "Encoding Error")]
+    EncodingHeifError = 9,
+    #[fail(display = "Failed to create context")]
     ContexCreateFailed,
+    #[fail(display = "Unknown Error")]
     Unknown,
 }
 
@@ -27,13 +39,13 @@ pub fn err_message(err: heif_error) -> String {
         .unwrap()
         .to_owned()
 }
-pub fn err_result(err: heif_error) -> Result<(), Error> {
+pub fn err_result(err: heif_error) -> Result<(), HeifError> {
     if err.code == 0 {
         Ok(())
     } else if err.code > 0 && err.code < 10 {
         Err(unsafe { mem::transmute(err.code) })
     } else {
-        Err(Error::Unknown)
+        Err(HeifError::Unknown)
     }
 }
 
@@ -123,7 +135,7 @@ impl ImageHandle {
         }
     }
 
-    pub fn decode(&self, options: &DecodeOptions) -> Result<Image, Error> {
+    pub fn decode(&self, options: &DecodeOptions) -> Result<Image, HeifError> {
         unsafe {
             let mut image = Box::new(mem::uninitialized());
             let err = heif_decode_image(
@@ -144,16 +156,16 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new() -> Result<Context, Error> {
+    pub fn new() -> Result<Context, HeifError> {
         let ctx = unsafe { heif_context_alloc() };
         if ctx == ptr::null_mut() {
-            Err(Error::ContexCreateFailed)
+            Err(HeifError::ContexCreateFailed)
         } else {
             Ok(Context { inner: ctx })
         }
     }
 
-    pub fn read_from_bytes(&self, bytes: &[u8]) -> Result<(), Error> {
+    pub fn read_from_bytes(&self, bytes: &[u8]) -> Result<(), HeifError> {
         let err = unsafe {
             heif_context_read_from_memory_without_copy(
                 self.inner,
@@ -165,7 +177,7 @@ impl Context {
         err_result(err)
     }
 
-    pub fn read_from_file(&mut self, name: &str) -> Result<(), Error> {
+    pub fn read_from_file(&mut self, name: &str) -> Result<(), HeifError> {
         let c_name = ffi::CString::new(name).unwrap();
         let err = unsafe { heif_context_read_from_file(self.inner, c_name.as_ptr(), ptr::null()) };
         err_result(err)
@@ -182,7 +194,7 @@ impl Context {
         unsafe { heif_context_get_number_of_top_level_images(self.inner) as _ }
     }
 
-    pub fn get_primary_image_handle(&self) -> Result<ImageHandle, Error> {
+    pub fn get_primary_image_handle(&self) -> Result<ImageHandle, HeifError> {
         unsafe {
             let mut handle = Box::new(mem::uninitialized());
             //       let handle = mem::uninitialized();
@@ -192,7 +204,7 @@ impl Context {
         }
     }
 
-    pub fn get_encoder_for_format(&mut self) -> Result<Encoder, Error> {
+    pub fn get_encoder_for_format(&mut self) -> Result<Encoder, HeifError> {
         let mut encoder = Box::new(unsafe { mem::uninitialized() });
         let err = unsafe {
             heif_context_get_encoder_for_format(
@@ -217,7 +229,7 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    pub fn set_lossy_quality(&mut self, value: usize) -> Result<(), Error> {
+    pub fn set_lossy_quality(&mut self, value: usize) -> Result<(), HeifError> {
         let err = unsafe { heif_encoder_set_lossy_quality(self.inner, value as _) };
         err_result(err)
     }
@@ -228,7 +240,7 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new(width: u32, height: u32, colorspace: u32, chroma: u32) -> Result<Image, Error> {
+    pub fn new(width: u32, height: u32, colorspace: u32, chroma: u32) -> Result<Image, HeifError> {
         let mut image = Image {
             inner: unsafe { mem::uninitialized() },
         };

@@ -11,6 +11,7 @@ documentation = "https://docs.rs/libheif"
 
 [dependencies]
 heif-sys = "0.1"
+failure = "0.1"
 
 
 [dev-dependencies]

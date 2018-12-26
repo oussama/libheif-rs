@@ -4,7 +4,7 @@ mod tests {
     use crate::*;
 
     #[test]
-    fn it_works() -> Result<(), Error> {
+    fn it_works() -> Result<(), failure::Error> {
         let mut ctx = Context::new()?;
         println!("ctx created");
         ctx.read_from_file("./data/test.HEIC")?;
@@ -60,7 +60,10 @@ mod tests {
         compress.finish_compress();
 
         use std::fs::write;
-        let _ = write("./data/out.jpg", &compress.data_to_vec().unwrap());
+        write(
+            "./target/out.jpg",
+            &compress.data_to_vec().expect("data to vec"),
+        )?;
         Ok(())
     }
 }

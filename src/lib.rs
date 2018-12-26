@@ -6,7 +6,38 @@ use std::ptr;
 mod test;
 
 #[derive(Debug)]
+#[repr(C)]
 pub enum Error {
+    InputDoesNotExist = 1,
+    InvalidInput = 2,
+    UnsupportedFiletype = 3,
+    UnsupportedFeature = 4,
+    UsageError = 5,
+    MemoryAllocationError = 6,
+    DecoderPluginError = 7,
+    EncoderPluginError = 8,
+    EncodingError = 9,
+    ContexCreateFailed,
+    Unknown,
+}
+
+pub fn err_message(err: heif_error) -> String {
+    unsafe { ffi::CStr::from_ptr(err.message) }
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+pub fn err_result(err: heif_error) -> Result<(), Error> {
+    if err.code == 0 {
+        Ok(())
+    } else if err.code > 0 && err.code < 10 {
+        Err(unsafe { mem::transmute(err.code) })
+    } else {
+        Err(Error::Unknown)
+    }
+}
+
+/*
     ContexCreateFailed,
     HeifFileReadFailed(String),
     ImageHandleAcquireFailed,
@@ -14,7 +45,7 @@ pub enum Error {
     ImageDecode(String),
     GetEncoderFailed,
     SetLossQuality,
-}
+}*/
 
 #[derive(Debug)]
 #[repr(C)]
@@ -102,16 +133,8 @@ impl ImageHandle {
                 heif_chroma_heif_chroma_undefined,         //encoder->chroma(has_alpha),
                 options.inner,
             );
-            if err.code == 0 {
-                Ok(Image { inner: *image })
-            } else {
-                Err(Error::ImageDecode(
-                    ffi::CStr::from_ptr(err.message)
-                        .to_str()
-                        .unwrap()
-                        .to_owned(),
-                ))
-            }
+            err_result(err)?;
+            Ok(Image { inner: *image })
         }
     }
 }
@@ -130,19 +153,22 @@ impl Context {
         }
     }
 
+    pub fn read_from_bytes(&self, bytes: &[u8]) -> Result<(), Error> {
+        let err = unsafe {
+            heif_context_read_from_memory_without_copy(
+                self.inner,
+                bytes.as_ptr() as _,
+                bytes.len(),
+                ptr::null(),
+            )
+        };
+        err_result(err)
+    }
+
     pub fn read_from_file(&mut self, name: &str) -> Result<(), Error> {
         let c_name = ffi::CString::new(name).unwrap();
         let err = unsafe { heif_context_read_from_file(self.inner, c_name.as_ptr(), ptr::null()) };
-        if err.code != 0 {
-            Err(Error::HeifFileReadFailed(
-                unsafe { ffi::CStr::from_ptr(err.message) }
-                    .to_str()
-                    .unwrap()
-                    .to_owned(),
-            ))
-        } else {
-            Ok(())
-        }
+        err_result(err)
     }
 
     pub fn write_to_file(&self, name: &str) {
@@ -161,11 +187,8 @@ impl Context {
             let mut handle = Box::new(mem::uninitialized());
             //       let handle = mem::uninitialized();
             let err = heif_context_get_primary_image_handle(self.inner, &mut *handle);
-            if err.code != 0 {
-                Err(Error::ImageHandleAcquireFailed)
-            } else {
-                Ok(ImageHandle { inner: *handle })
-            }
+            err_result(err)?;
+            Ok(ImageHandle { inner: *handle })
         }
     }
 
@@ -178,11 +201,8 @@ impl Context {
                 &mut *encoder,
             )
         };
-        if err.code == 0 {
-            Ok(Encoder { inner: *encoder })
-        } else {
-            Err(Error::GetEncoderFailed)
-        }
+        err_result(err)?;
+        Ok(Encoder { inner: *encoder })
     }
 }
 
@@ -199,11 +219,7 @@ pub struct Encoder {
 impl Encoder {
     pub fn set_lossy_quality(&mut self, value: usize) -> Result<(), Error> {
         let err = unsafe { heif_encoder_set_lossy_quality(self.inner, value as _) };
-        if err.code == 0 {
-            Ok(())
-        } else {
-            Err(Error::SetLossQuality)
-        }
+        err_result(err)
     }
 }
 
@@ -225,11 +241,8 @@ impl Image {
                 &mut image.inner,
             )
         };
-        if err.code != 0 {
-            Err(Error::ImageCreateFailed)
-        } else {
-            Ok(image)
-        }
+        err_result(err)?;
+        Ok(image)
     }
 
     pub fn get_plane(&self, channel: Channel) -> (&mut [u8], u32) {
